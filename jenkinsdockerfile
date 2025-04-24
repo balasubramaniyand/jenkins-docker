@@ -1,0 +1,60 @@
+FROM jenkins/jenkins:lts
+
+USER root
+
+# Install prerequisites
+RUN apt-get update && \
+    apt-get install -y \
+    apt-transport-https \
+    ca-certificates \
+    curl \
+    gnupg \
+    lsb-release \
+    sudo
+
+# Add Docker's official GPG key
+RUN mkdir -p /etc/apt/keyrings && \
+    curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+# Set up Docker repository
+RUN echo \
+    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \
+    $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# Install Docker
+RUN apt-get update && \
+    apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+# Create docker group with same GID (999) that's common on many systems
+# This can be modified at runtime if needed
+RUN groupadd -g 999 docker || true && \
+    usermod -aG docker jenkins && \
+    usermod -aG sudo jenkins && \
+    echo "jenkins ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+# Install Docker Compose v2
+RUN mkdir -p /usr/local/lib/docker/cli-plugins && \
+    curl -SL https://github.com/docker/compose/releases/download/v2.23.3/docker-compose-linux-$(dpkg --print-architecture) -o /usr/local/lib/docker/cli-plugins/docker-compose && \
+    chmod +x /usr/local/lib/docker/cli-plugins/docker-compose && \
+    ln -s /usr/local/lib/docker/cli-plugins/docker-compose /usr/local/bin/docker-compose
+
+# Create startup script to fix Docker socket permissions on container start
+RUN echo '#!/bin/bash\n\
+SOCKET_GID=$(stat -c "%g" /var/run/docker.sock)\n\
+if [ -S /var/run/docker.sock ]; then\n\
+    if [ "$SOCKET_GID" != "0" ]; then\n\
+        if ! getent group $SOCKET_GID; then\n\
+            groupadd -g $SOCKET_GID docker-host\n\
+        fi\n\
+        usermod -aG $SOCKET_GID jenkins\n\
+    fi\n\
+    chmod 666 /var/run/docker.sock\n\
+fi\n\
+exec su jenkins -c "/usr/local/bin/jenkins.sh"' > /usr/local/bin/start.sh && \
+    chmod +x /usr/local/bin/start.sh
+
+# Jenkins setup
+ENV JENKINS_HOME /var/jenkins_home
+
+# Use custom entrypoint to handle docker socket permissions
+ENTRYPOINT ["/usr/local/bin/start.sh"]
