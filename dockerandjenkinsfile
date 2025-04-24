@@ -1,0 +1,22 @@
+```
+sudo docker run -d --name jenkins-doc     -p 8004:8080     -v /var/run/docker.sock:/var/run/docker.sock     tets:1^C
+Dockerfile 
+```
+# Use the official Jenkins image as a base
+FROM jenkins/jenkins:lts
+
+# Switch to root user to install dependencies
+USER root
+
+# Install Docker inside the container
+RUN apt-get update && \
+    apt-get install -y docker.io && \
+    apt-get clean
+
+# Allow Jenkins user to access Docker
+RUN usermod -aG docker jenkins
+
+# Switch back to Jenkins user
+USER jenkins
+```
+
