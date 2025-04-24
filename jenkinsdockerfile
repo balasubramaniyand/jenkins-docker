@@ -38,6 +38,9 @@ RUN mkdir -p /usr/local/lib/docker/cli-plugins && \
     chmod +x /usr/local/lib/docker/cli-plugins/docker-compose && \
     ln -s /usr/local/lib/docker/cli-plugins/docker-compose /usr/local/bin/docker-compose
 
+
+sudo docker run -d --name jenkins-docker -p 8080:8080 -p 50000:50000   -v jenkins_home:/var/jenkins_home   -v /var/run/docker.sock:/var/run/docker.sock   jenkins-dev:bala
+
 # Create startup script to fix Docker socket permissions on container start
 RUN echo '#!/bin/bash\n\
 SOCKET_GID=$(stat -c "%g" /var/run/docker.sock)\n\
